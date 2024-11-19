@@ -57,5 +57,4 @@ Review the output metrics to assess model performance and accuracy.
   
 ## Contact
 For questions or further information, please contact:
-* Email: gayathreegopi@utexas.edu
 * LinkedIn: linkedin.com/in/gayathreegopi
