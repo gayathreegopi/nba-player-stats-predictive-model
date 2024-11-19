@@ -1,0 +1,1123 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+### Model Testing and Cross-Validation
+# Gayathree Gopi, Ronak Goyal, Jennifer Gonzalez, Maria Lasala
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Do CV first on test set and then test on entire set
+# Load packages
+library(trackdown)
+library(tidyverse)
+library(kknn)
+library(caret)
+library(readr)
+library(readr)
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+#We'll have to change the names below to match Ronak's cleaned dataset
+
+```
+
+##kNN Models
+Model 1: K-Nearest Neighbors Based on Games Started, Minutes Played, Field Goals per Game, and Free Throws per Game
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# K-Nearest Neighbors Model with games started, minutes played, field goals per game, and free throws per game as predictors
+fit_knnreg <- knnreg(points_per_game ~ games_started + minutes_played_per_game + 
+                       field_goals_per_game + free_throws_per_game,
+                     data = nba,
+                     k = 5)
+nba |>
+  mutate(predictions = predict(fit_knnreg, nba)) |>
+  select(points_per_game, games_started,minutes_played_per_game, field_goals_per_game, 
+         free_throws_per_game, predictions)
+
+sqrt(mean((nba$points_per_game - predict(fit_knnreg, nba))^2))
+
+```
+This initial kNN model has a mean squared error (MSE) of 1.21; this seems reasonably low, especially in the context of predicting NBA players' points per game, where small prediction errors (around 1 point) are relatively acceptable.
+
+### Cross-Validation
+
+Cross-Validation for Model 1:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Cross-Validation for K-Nearest Neighbors Model
+# set a seed to get the same random sample
+set.seed(322)
+
+# set k (number of folds) equal to 10
+k = 10 
+
+# randomly order rows in the dataset
+data <- nba[sample(nrow(nba)), ] 
+
+# and cut it into folds
+folds <- cut(seq(1:nrow(data)), breaks = k, labels = FALSE)
+
+# Initialize a vector to keep track of the performance for each k-fold
+perf_knn <- NULL
+
+for(i in 1:k){
+# Split data into train and test data
+train_not_i <- data[folds != i, ] # train data = all observations except in fold i
+test_i <- data[folds == i, ] # test data = observations in fold i
+
+# Train model on train data (all but fold i)
+knnreg1 <- knnreg(points_per_game ~ games_started + minutes_played_per_game +
+                    field_goals_per_game + free_throws_per_game, data = train_not_i, k=5)
+
+# Performance listed for each test data (fold i)
+perf_knn[i] <- sqrt(mean((test_i$points_per_game - predict(knnreg1, newdata = test_i))^2, na.rm = TRUE))
+}
+
+# Reporting mean and standard deviation of the KNN model's RMSE
+
+perf_knn
+mean(perf_knn)
+sd(perf_knn)
+
+#performance metrics plot for cross-validation
+perf_knn_df <- data.frame(fold = 1:k, RMSE = perf_knn)
+
+ggplot(perf_knn_df, aes(x = fold, y = RMSE)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Cross-Validation RMSE (Model 1, k=5)",
+       x = "Fold",
+       y = "RMSE") +
+  theme_minimal()
+```
+The cross-validation results for the kNN model shows a mean RMSE of 1.555605, which is reasonable considering that an average prediction error of about 1.58 points per game is relatively small in the context of typical scoring ranges in the NBA.
+
+The low standard deviation of the RMSE values (0.1383197) indicates that the model's performance in predicting player scoring is consistent across different folds of the data.
+
+As plotted, the RMSE values indicate that the prediction errors fluctuate slightly across the different folds but remain relatively low overall. The lowest RMSE is seen in Fold 4 however, the higher RMSE in Folds 1 and 5 indicates some performance variability.
+
+
+## Model 1 with 10 neighbors rather than 5
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# K-Nearest Neighbors Model with games started, minutes played, field goals per game, and free throws per game as predictors
+fit_knnreg <- knnreg(points_per_game ~ games_started + minutes_played_per_game+ field_goals_per_game + free_throws_per_game,
+                     data = nba,
+                     k = 10)
+nba |>
+  mutate(predictions = predict(fit_knnreg, nba)) |>
+  select(points_per_game, games_started, minutes_played_per_game, field_goals_per_game, free_throws_per_game, predictions)
+
+sqrt(mean((nba$points_per_game - predict(fit_knnreg, nba))^2))
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Cross-Validation for K-Nearest Neighbors Model
+# set a seed to get the same random sample
+set.seed(322)
+
+# set k (number of folds) equal to 10
+k = 10 
+
+# randomly order rows in the dataset
+data <- nba[sample(nrow(nba)), ] 
+
+# and cut it into folds
+folds <- cut(seq(1:nrow(data)), breaks = k, labels = FALSE)
+
+# Initialize a vector to keep track of the performance for each k-fold
+perf_knn <- NULL
+
+for(i in 1:k){
+# Split data into train and test data
+train_not_i <- data[folds != i, ] # train data = all observations except in fold i
+test_i <- data[folds == i, ] # test data = observations in fold i
+
+# Train model on train data (all but fold i)
+knnreg1 <- knnreg(points_per_game ~ games_started + minutes_played_per_game + 
+                    field_goals_per_game + free_throws_per_game, data = train_not_i, k=10)
+
+# Performance listed for each test data (fold i)
+perf_knn[i] <- sqrt(mean((test_i$points_per_game - predict(knnreg1, newdata = test_i))^2, na.rm = TRUE))
+}
+
+# Reporting mean and standard deviation of the KNN model's RMSE
+
+perf_knn
+mean(perf_knn)
+sd(perf_knn)
+
+#performance metrics plot for cross-validation
+perf_knn_df <- data.frame(fold = 1:k, RMSE = perf_knn)
+
+ggplot(perf_knn_df, aes(x = fold, y = RMSE)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Cross-Validation RMSE (Model 1, k=10)",
+       x = "Fold",
+       y = "RMSE") +
+  theme_minimal()
+
+```
+The cross-validation results for the kNN model show that it has a mean RMSE of 1.748932 with a low standard deviation of 0.1352917, meaning that on average, the model is only about 1.79 points off.
+
+In comparison to the previous model with 5 neighbors, it is slightly less accurate, but has higher consistency in its performance. However, both models do a good job in predicting a player's points per game given the predictors of games started, minutes played per game, field goals per game, and free throws per game.
+
+As plotted, the RMSE values are generally higher compared to the model with 5 neighbors. However as in the previous model, Fold 4 shows the lowest RMSE, however performance variability is more pronounced here, particularly with Fold 5 showing the highest RMSE (suggests that increasing the number of neighbors may lead to a slightly less accurate model).
+
+
+## Model 2: K-Nearest Neighbors Based on the Majority of Predictors
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# K-Nearest Neighbors Model all predictors
+#Giving errors for column names that start with numbers (3P, 3PA, 2P)
+fit_knnreg2 <- knnreg(points_per_game ~ position + age + games_played + games_started +
+                        minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                        total_rebounds_per_game + assists_per_game + steals_per_game + 
+                        blocks_per_game + turnovers_per_game,
+                     data = nba,
+                     k = 5)
+nba |>
+  mutate(predictions = predict(fit_knnreg2, nba)) #|>
+  #select(., predictions)
+
+sqrt(mean((nba$points_per_game - predict(fit_knnreg2, nba))^2))
+
+```
+
+Cross-Validation for Model 2:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Cross-Validation for K-Nearest Neighbors Model
+# set a seed to get the same random sample
+set.seed(322)
+
+# set k (number of folds) equal to 10
+k = 10 
+
+# randomly order rows in the dataset
+data <- nba[sample(nrow(nba)), ] 
+
+# and cut it into folds
+folds <- cut(seq(1:nrow(data)), breaks = k, labels = FALSE)
+
+# Initialize a vector to keep track of the performance for each k-fold
+perf_knn <- NULL
+
+
+
+for(i in 1:k){
+# Split data into train and test data
+train_not_i <- data[folds != i, ] # train data = all observations except in fold i
+train_not_i <- train_not_i %>% slice(1:212)
+test_i <- data[folds == i, ] # test data = observations in fold i
+
+# Train model on train data (all but fold i)
+knnreg1 <- knnreg(points_per_game ~ position + age + games_played + games_started +
+                    minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                    total_rebounds_per_game + assists_per_game + steals_per_game + 
+                    blocks_per_game + turnovers_per_game, data = train_not_i, k=5)
+
+# Performance listed for each test data (fold i)
+perf_knn[i] <- sqrt(mean((test_i$points_per_game - predict(knnreg1, newdata = test_i))^2, na.rm = TRUE))
+}
+
+
+# Reporting mean and standard deviation of the KNN model's RMSE
+
+perf_knn
+mean(perf_knn)
+sd(perf_knn)
+
+#performance metrics plot for cross-validation
+perf_knn_df <- data.frame(fold = 1:k, RMSE = perf_knn)
+
+ggplot(perf_knn_df, aes(x = fold, y = RMSE)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Cross-Validation RMSE (Model 2, k=5)",
+       x = "Fold",
+       y = "RMSE") +
+  theme_minimal()
+
+```
+The initial RMSE value of 1.92 indicates that the model's predictive performance are relatively close to the actual points per game. While the mean RMSE from cross-validation is higher at 2.96, suggesting that while the model performs reasonably well on the training data, its predictions are less accurate when evaluated on unseen data subsets, especially when coupled with an increased average prediction error of about 2.96 points per game.
+
+Compared to Model 1, which had a lower mean cross-validation RMSE, Model 2 shows higher prediction errors. This indicates that Model 1 might be more effective in predicting PTS with fewer predictors but better accuracy; Model 2, while using a broader set of predictors, does not necessarily translate into better performance, as seen by the higher RMSE values.
+
+As plotted, the RMSE values indicate a higher level of prediction error compared to Model 1 with 5 neighbors. However, again the lowest RMSE is seen in Fold 4, while Fold 2 shows the highest RMSE. This performance suggests that including more predictors in Model 2 does not necessarily improve prediction accuracy and can lead to more inconsistent results.
+
+#Model 2 with 10 neighbors
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# K-Nearest Neighbors Model all predictors
+#Giving errors for column names that start with numbers (3P, 3PA, 2P)
+fit_knnreg2 <- knnreg(points_per_game ~ position + age + games_played + games_started +
+                        minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                        total_rebounds_per_game + assists_per_game + steals_per_game +
+                        blocks_per_game + turnovers_per_game,
+                     data = nba,
+                     k = 10)
+nba |>
+  mutate(predictions = predict(fit_knnreg2, nba)) #|>
+  #select(., predictions)
+
+sqrt(mean((nba$points_per_game - predict(fit_knnreg2, nba))^2))
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Cross-Validation for K-Nearest Neighbors Model
+# set a seed to get the same random sample
+set.seed(322)
+
+# set k (number of folds) equal to 10
+k = 10 
+
+# randomly order rows in the dataset
+data <- nba[sample(nrow(nba)), ] 
+
+# and cut it into folds
+folds <- cut(seq(1:nrow(data)), breaks = k, labels = FALSE)
+
+# Initialize a vector to keep track of the performance for each k-fold
+perf_knn <- NULL
+
+for(i in 1:k){
+# Split data into train and test data
+train_not_i <- data[folds != i, ] # train data = all observations except in fold i
+test_i <- data[folds == i, ] # test data = observations in fold i
+
+# Train model on train data (all but fold i)
+knnreg1 <- knnreg(points_per_game ~ position + age + games_played+ games_started +
+                    minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                    total_rebounds_per_game + assists_per_game + steals_per_game + 
+                    blocks_per_game + turnovers_per_game, data = train_not_i, k=10)
+
+# Performance listed for each test data (fold i)
+perf_knn[i] <- sqrt(mean((test_i$points_per_game - predict(knnreg1, newdata = test_i))^2, na.rm = TRUE))
+}
+
+# Reporting mean and standard deviation of the KNN model's RMSE
+
+perf_knn
+mean(perf_knn)
+sd(perf_knn)
+
+#performance metrics plot for cross-validation
+perf_knn_df <- data.frame(fold = 1:k, RMSE = perf_knn)
+
+ggplot(perf_knn_df, aes(x = fold, y = RMSE)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Cross-Validation RMSE (Model 2, k=10)",
+       x = "Fold",
+       y = "RMSE") +
+  theme_minimal()
+
+```
+The initial RMSE value is 2.17, with the mean RMSE from cross-validation being higher at 2.49 (and a standard deviation of 0.1961762).  Both model seem to have a moderate level of accuracy.
+
+Compared to Model 2 with 5 neighbors (RMSE of 2.96), the 10-neighbor model shows improved performance with a lower RMSE, indicating that using more neighbors helps improve the model's prediction accuracy. However, compared to the RMSE of Model 1 with 5 neighbors (1.58), Model 1 might be more effective a player's points per game with fewer predictors.
+
+As plotted, Model 2 using 10 neighbors improves prediction accuracy compared to using 5 neighbors, but it still does not outperform Model 1; Model 1 (k=5 Neighbors) remains the most effective model with the lowest and most consistent RMSE values.
+
+#RMSE vs. Complexity Plot for Best kNN Model
+```{r}
+# Load necessary libraries
+library(ggplot2)
+
+# Provided RMSE values for different k values
+rmse_values <- data.frame(
+  k = c(5, 10),
+  rmse = c(1.21, 1.50)
+)
+
+# Calculate log(1/k)
+rmse_values$log_1_over_k <- log(1 / rmse_values$k)
+
+# Plot RMSE vs. log(1/k)
+ggplot(rmse_values, aes(x = log_1_over_k, y = rmse)) +
+  geom_point(size = 3) +
+  geom_line(linetype = 'dashed') +
+  labs(
+    title = 'RMSE vs. Complexity for the Best kNN Model',
+    x = 'Complexity (log(1/k))',
+    y = 'RMSE'
+  ) +
+  theme_minimal() +
+  scale_x_continuous(limits = c(min(rmse_values$log_1_over_k), 0)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+#Linear Regression Models
+
+Model 1: Linear Regression Based on Games Started, Minutes Played, Field Goals per Game, and Free Throws per Game
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#Linear Regression Model with games started, minutes played, field goals per game, and free throws per game as predictors
+
+fit_lin1 <- lm(points_per_game ~ games_started + minutes_played_per_game + field_goals_per_game +
+                 free_throws_per_game, data = nba)
+nba |>
+  ggplot(aes(x = games_started + minutes_played_per_game + field_goals_per_game +
+               free_throws_per_game, y = points_per_game)) +
+  # Consider a linear regression model
+  geom_point(size = 2) + 
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", size = 2) +
+  labs(x = "Predictors",
+       y = "Points Scored",
+       title = "Model 1: Points Scored based on GS, MP, FG, and FT")
+summary(fit_lin1)
+nba |>
+  mutate(predictions = predict(fit_lin1, nba)) |>
+  select(points_per_game, games_started, minutes_played_per_game, field_goals_per_game,
+         free_throws_per_game, predictions)
+  
+sqrt(mean((nba$points_per_game - predict(fit_lin1, nba))^2))
+
+```
+The linear regression model demonstrates excellent predictive power with a high R-squared value of .9922, with all predictors being statistically significant.
+
+The fitted line on the scatterplot indicates a strong linear relationship, supporting the high R-squared value and showing that the model predicts PTS well based on the chosen predictors.
+
+### Cross-Validation
+
+Cross-Validation for Model 1:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+fit_lin1 <- lm(points_per_game ~ games_started + minutes_played_per_game + field_goals_per_game +
+                 free_throws_per_game, data = nba)
+
+# Perform 10-fold cross-validation
+set.seed(123)  # For reproducibility
+train_control <- trainControl(method = "cv", number = 10)
+
+# Train the model using cross-validation
+fit_cv <- train(points_per_game ~ games_started + minutes_played_per_game + field_goals_per_game +
+                  free_throws_per_game, data = nba, method = "lm", trControl = train_control)
+
+# Print the cross-validation results
+print(fit_cv)
+
+# Plotting the data and the regression line
+nba |>
+  ggplot(aes(x = games_started + minutes_played_per_game + field_goals_per_game +
+               free_throws_per_game, y = points_per_game)) +
+  geom_point(size = 2) + 
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", size = 2) +
+  labs(x = "Predictors",
+       y = "Points Scored",
+       title = "Model 1: Points Scored based on GS, MP, FG, and FT")
+
+# Print the summary of the linear model
+summary(fit_lin1)
+
+# Extract and print the RMSE from the cross-validation results
+cv_rmse <- fit_cv$results$RMSE
+mean_cv_rmse <- mean(cv_rmse)
+print(paste("Mean CV RMSE:", mean_cv_rmse))
+
+```
+The cross validation results indicate that the linear regression model is highly accurate in predicting PTS for NBA players. With an RMSE of 0.6236, the model's predictions are very close to the actual PTS values.
+
+Model 2: Linear Regression Based on the Majority of Predictors
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Linear Regression Model based on the majority of predictors
+fit_lin2 <- lm(points_per_game ~ position + age + games_played + games_started +
+                 minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                 total_rebounds_per_game + assists_per_game + steals_per_game + blocks_per_game +
+                 turnovers_per_game, data = nba)
+summary(fit_lin1)
+
+
+nba |> 
+  ggplot(aes(x = age +games_played+ games_started + minutes_played_per_game + 
+               field_goals_per_game + free_throws_per_game + total_rebounds_per_game +
+               assists_per_game + steals_per_game + blocks_per_game + turnovers_per_game, y = points_per_game)) +
+  # Consider a linear regression model
+  geom_point(size = 2) + 
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", size = 2) +
+  labs(x = "Predictors",
+       y = "Points Scored",
+       title = "LM model to predict Points Scored based on the Majority of Predictors")
+
+nba |>
+  mutate(predictions = predict(fit_lin2, nba)) |>
+  select(points_per_game, games_started, minutes_played_per_game, field_goals_per_game,
+         free_throws_per_game, predictions)
+
+sqrt(mean((nba$points_per_game - predict(fit_lin2, nba))^2))
+
+```
+
+Cross-Validation for Model 2:
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# Perform 10-fold cross-validation
+set.seed(123)  # For reproducibility
+train_control <- trainControl(method = "cv", number = 10)
+
+# Train the model using cross-validation
+fit_cv2 <- train(points_per_game ~ position + age + games_played + games_started +
+                   minutes_played_per_game + field_goals_per_game + free_throws_per_game +
+                   total_rebounds_per_game + assists_per_game + steals_per_game + blocks_per_game +
+                   turnovers_per_game, data = nba, method = "lm", trControl = train_control)
+
+# Print the cross-validation results
+print(fit_cv2)
+
+# Plotting the data and the regression line
+nba |> 
+  ggplot(aes(x = age + games_played + games_started + minutes_played_per_game + 
+               field_goals_per_game + free_throws_per_game + total_rebounds_per_game +
+               assists_per_game + steals_per_game + blocks_per_game + turnovers_per_game, y = points_per_game)) +
+  geom_point(size = 2) + 
+  geom_smooth(method = "lm", se = FALSE, color = "steelblue", size = 2) +
+  labs(x = "Predictors",
+       y = "Points Scored",
+       title = "LM model CV to predict Points Scored based on the Majority of Predictors")
+
+# Print the summary of the linear model
+summary(fit_lin2)
+
+# Extract and print the RMSE from the cross-validation results
+cv_rmse2 <- fit_cv2$results$RMSE
+mean_cv_rmse2 <- mean(cv_rmse2)
+print(paste("Mean CV RMSE:", mean_cv_rmse2))
+
+```
+Both linear regression models demonstrate high performance in predicting PTS, with R-squared values of 0.9922 and low RMSE values from cross-validation (0.4909603 for Model 2); these results seem to show that the models can explain nearly all the variance in PTS and predict player performance with high accuracy.
+
+However, this is achievement of high results is given a broader range of predictors, meaning that overfitting could be at play.
+
+### Maru - Trees
+
+### Preparing Variables for Analysis
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#preparing variables for analysis
+library(tree)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(readr)
+library(tidyverse)
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+
+# convert column to numeric
+nba$age <- as.numeric(as.character(nba$age))
+nba$games_played <- as.numeric(as.character(nba$games_played))
+nba$games_started <- as.numeric(as.character(nba$games_started))
+
+
+```
+```{r include=FALSE}
+position_counts <- table(nba$position)
+print(position_counts)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+tree.nba <- tree(points_per_game ~ . - position, data = nba, mindev = 0.0001)
+# took out Pos (char type predictor) so model can run
+
+summary(tree.nba) 
+# residual mean deviance = 0.3439 (on avg, we can expect our predictions to deviate from actual values by 0.3439 points)
+# Var Used: "FG"   "FT"   "X3P"  "X3PA" "FGA"  "X3P." "eFG." "ORB"  "FTA"  "X2P." "FT."  "X2P"  "PF"  
+# 50 nodes
+
+plot(tree.nba, uniform = TRUE)
+text(tree.nba, pretty = 0, cex = 0.7, xpd = TRUE)
+
+cat("first big tree size: \n")
+print(length(unique(tree.nba$where)))
+
+# use rpart to plot pretty
+tree.nba <- rpart(points_per_game ~ . - position, data = nba, control = rpart.control(minsplit = 20, cp = 0.01))
+rpart.plot(tree.nba, type = 2, under = TRUE, varlen = 0, cex = 0.8)
+
+```
+The regression tree model effectively identifies key factors influencing NBA players' points per game (PTS), with field goals per game being the most critical predictor initially, followed by free throws per game and three-point field goals attempts per game.
+
+The model's complexity (49 terminal nodes) captures detailed patterns within the data, resulting in low residual mean deviance and accurate predictions.
+
+### Training & testing splits
+```{r}
+# creating training/testing sets with caret
+set.seed(2)
+train_ix = createDataPartition(nba$points_per_game, 
+                               p = 0.8) #80% of data in training set
+#caret package sampling
+nba_train = nba[train_ix$Resample1,]
+nba_test  = nba[-train_ix$Resample1,]
+```
+
+
+### Setting up cross-validation
+```{r}
+
+kcv = 10
+
+cv_folds = createFolds(nba_train$points_per_game, #create cv folds
+                               k = kcv) #split indices from training data into folds
+
+fit_control <- trainControl( #lots of ways to do out of samp eval (leave one out = LOOCV)
+  method = "cv",
+  indexOut = cv_folds, #delete arg here so code creates folds for me
+  selectionFunction="oneSE") 
+# one standard dev rule; find optimal, look at window, pick simplest one
+
+# find optimal choice of parameters with cross validation, 
+# then combine data again, do boosting using set of parameters
+
+```
+
+### Boosting
+```{r}
+
+# Boosting, optimizing over default grid for number of trees and depth
+gbmfit <- train( points_per_game ~ . - position, data = nba_train,
+                 method = "gbm",  
+          #gbm is gradient boosting package
+          #https://topepo.github.io/caret/train-models-by-tag.html#Boosting
+                 trControl = fit_control,
+                 verbose = FALSE) 
+
+```
+
+```{r}
+# CV Using a custom grid
+
+gbm_grid <-  expand.grid(interaction.depth = c(1, 2, 3, 10), 
+                         #trial and error, bigger grid = more time for cv
+                        n.trees = c(10, 20, 30, 50), 
+                        shrinkage = c(0.01, 0.1, 0.2),
+                        n.minobsinnode = 10)
+
+gbmfit_2 <- train(points_per_game ~ .-position, data = nba_train, 
+                 method = "gbm", 
+                 trControl = fit_control,
+                 tuneGrid = gbm_grid,
+                 verbose = FALSE)
+
+print(gbmfit_2)
+# OUTPUT
+  # 732 samples (80% of dataset)
+  # 26 predictors
+  # 10 folds
+    # n = 50 trees
+    # tree depth of 10 (can capture interactions)
+    # shrinkage/squish parameter of 0.2 to cross validate
+```
+
+```{r}
+# Table of results including std dev
+print(gbmfit_2$results)
+
+# Determine the max RMSE that's within one SE of best
+best_ix = which.min(gbmfit_2$results$RMSE)
+best = gbmfit_2$results[best_ix,]
+onese_max_RMSE = best$RMSE + best$RMSESD/sqrt(kcv)
+
+# parameter values within one SD:
+onese_ixs = gbmfit_2$results$RMSE<onese_max_RMSE
+
+print(gbmfit_2$results[onese_ixs,])
+
+```
+
+```{r}
+# Fit using the parameters with the
+# lowest estimated error:
+
+gbmfit_3 = train(points_per_game ~ .-position, data = nba_train, 
+                 method = "gbm", 
+                 trControl = trainControl(method="none"), # No need for CV
+                 tuneGrid = best[,1:4],
+                 verbose = FALSE)
+
+# Very, very similar in sample fits
+plot(predict(gbmfit_2), predict(gbmfit_3))
+
+# Plots of the results. First the defaults:
+plot(gbmfit_2)
+ggplot(gbmfit_2)
+
+```
+Two models for boosting were used: one with default grid parameters and another with randomly chosen grid parameters (interaction.depth from 1-10, n.trees from 10-50, shrinkage from 0.01-0.2, with a minimum number of terminal nodes set to 10).
+
+The custom grid search identified the optimal paramters to be 50 trees, an interaction depth of 10, and a shrinkage of 0.2. These parameters resulted in low RMSE (0.2392749) and high R-squared values (0.9987765). Additionally, the final model (gbmfit_3) shows nearly identical predictions to the cross-validated model (gbmfit_2), reinforcing the model's reliability and accuracy for predicting PTS in the given dataset.
+
+Compared to the previous models, the gradient boosting models seems to be the best choice, as the linear regression models fell short in accuracy, despite their simpler and more interpretable results.
+
+```{r}
+# Or we can build our own to choose facets/colors/etc., and add
+# +/- 1 SE
+
+gbm_plot_df = gbmfit_2$results
+gbm_plot_df$n.trees = factor(gbm_plot_df$n.trees)
+
+ggplot(aes(x=interaction.depth, y=RMSE, color=n.trees), 
+       data=gbm_plot_df) +
+  facet_grid(~shrinkage, labeller = label_both) +
+  geom_point() + 
+  geom_line() + 
+  geom_segment(aes(x=interaction.depth, 
+                   xend=interaction.depth, 
+                   y=RMSE-RMSESD/sqrt(kcv), 
+                   yend=RMSE+RMSESD/sqrt(kcv))) + 
+  geom_hline(yintercept = onese_max_RMSE, linetype='dotted') +
+  xlab("Max Tree Depth") + 
+  ylab("RMSE (CV)") + 
+  scale_color_discrete(name = "Num Boosting Iter") + 
+  theme(legend.position="bottom")
+```
+The plots show that increasing the number of iterations and shrinkage rates (to 50 and 0.1-0.2), while having moderately high tree depths (around size 10) when boosting tend to perform the best, achieving the lowest RMSE values. While the models' performance stabilizes with increased tree depth and iterations, beyond certain points, additional complexity holds diminishing returns while risking overfitting.
+
+### Random forests
+```{r}
+# Optimizing over a default mtry grid
+rf_fit <- train( points_per_game ~ .-position, data = nba_train, 
+                 method = "rf", # run random forest
+                 trControl = fit_control,
+                 ntree = 500) # random forest with 500 trees
+
+# The default grid is coarse, and missing the usual rf default sqrt(13) = 3 or 4
+# Here I'll use a custom grid
+rf_grid = data.frame(mtry = c(3,4,7,10,13)) #making grid
+rf_fit <- train( points_per_game ~ .-position, data = nba_train, 
+                 method = "rf", # changed method to random forest
+                 trControl = fit_control,
+                 tuneGrid = rf_grid,
+                 ntree = 50) # number of trees, probably bigger than 50
+
+# Getting a plot of CV error estimates
+ggplot(rf_fit)
+best = rf_fit$results[which.min(rf_fit$results$RMSE),]
+onesd = best$RMSE + best$RMSESD/sqrt(kcv)
+
+```
+
+```{r}
+# RMSE compared to number of predictiors
+ggplot(rf_fit) + 
+  geom_segment(aes(x=mtry, 
+                   xend=mtry, 
+                   y=RMSE-RMSESD/sqrt(kcv), 
+                   yend=RMSE+RMSESD/sqrt(kcv)), 
+               data=rf_fit$results) + 
+  geom_hline(yintercept = onesd, linetype='dotted')
+
+### Variable importance
+
+# caret var importance plot
+imp = varImp(rf_fit, scale=TRUE)
+
+# variable importance data frame
+plot_df = data.frame(variable=rownames(imp$importance),
+                     rel_importance = imp$importance$Overall)
+
+varImp(rf_fit$finalModel, scale=FALSE)
+
+```
+The plots highlight how the RMSE decreases as the number of predictors increases from three to ten, reaching its lowest points at mtry= 10 (its error bars is well below the dotted horizontal line, indicating the RMSE value is within one standard deviation of the best RMSE).
+
+### Comparing RF and Boosting
+```{r, message=FALSE, warning=FALSE}
+library(gbm)
+# predict validation set
+
+gbm_yhat = predict(gbmfit_2, newdata=nba_test)
+rf_yhat  = predict(rf_fit,   newdata=nba_test)
+
+# plot predicted values
+plot(gbm_yhat, rf_yhat)
+cor(gbm_yhat, rf_yhat)
+abline(0,1)
+
+# validation rmse: how each model is performing on validation set
+sqrt(mean( (nba_test$points_per_game - gbm_yhat)^2 ))
+sqrt(mean( (nba_test$points_per_game - rf_yhat)^2 ))
+
+# compare variable importance
+gbm_imp = varImp(gbmfit_2)
+rf_imp  = varImp(rf_fit)
+combined_df = data.frame(variable=rownames(gbm_imp$importance),
+                         gbm = gbm_imp$importance$Overall,
+                         rf  = rf_imp$importance$Overall)
+
+# variable importance
+View(combined_df)
+# pairs(nba_filtered %>% select( VARIABLES ))
+
+```
+The scatterplot of the predictions between the two show a strong linear relationship (evidenced by the high correlation coefficient of 0.99771). The RMSEs on the validation set are 0.5923489 and 0.6875388 for boosting and random forest respectively.
+
+So while both models perform well, the boosting model is slightly better.
+
+### Single Tree
+```{r, message=FALSE, warning=FALSE}
+
+rpart_grid = data.frame(cp = c(0, exp(seq(log(0.00001), log(0.03), length.out=500))))
+single_tree_fit <- train( points_per_game ~ .-position, data = nba_train, 
+                          method = "rpart", 
+                          tuneGrid = rpart_grid,
+                          trControl = fit_control)
+
+# final fit
+single_tree_fit$finalModel
+rpart.plot(single_tree_fit$finalModel)
+
+#plot tree with best parameters
+set.seed(1)
+bigtree = rpart(points_per_game ~ . -position, data = nba_train,
+                control = rpart.control(cp=0.0009, minsplit=5))
+plotcp(bigtree)
+printcp(bigtree)
+best_cp_ix = which.min(bigtree$cptable[,4]) # "Best"
+bigtree$cptable[best_cp_ix,4]
+
+# one sd rule
+tol = bigtree$cptable[best_cp_ix,4] + bigtree$cptable[best_cp_ix,5]
+bigtree$cptable[bigtree$cptable[,4]<tol,][1,]
+best_cp_onesd = bigtree$cptable[bigtree$cptable[,4]<tol,][1,1]
+cvtree = prune(bigtree, cp=best_cp_onesd)
+
+
+# different trees bc of different CV folds
+plot(predict(cvtree), predict(single_tree_fit$finalModel))
+abline(0,1)
+
+# jittering the predictions
+plot(predict(cvtree)+runif(nrow(nba_train), -0.5,  0.5), 
+     predict(single_tree_fit$finalModel)+runif(nrow(nba_train), -0.5,  0.5))
+abline(0,1)
+
+cor(predict(cvtree), predict(single_tree_fit$finalModel))
+```
+For the decision tree model: the most critical variable for splitting the data is 'field_goals_per_game', with further splits including variables such as 'free_throws_per_game', 'field_goals_attempts_per_game', and 'three_point_field_goals_attempts_per_game', matching other models.
+
+For the random forest model: the optimal number of predictors was around 10 considered at each split, with the most important predictors being 'field_goals_per_game', 'field_goals_attempts_per_game' and 'free_throws_per_game'. Up until 10 predictors, the cross-validation error decreases significantly.
+
+For the boosting model: the optimal combination of parameters was a tree depth of 10, shrinkage of 0.2, and 50 boosting iterations, as it provided the lowest RMSE on cross-validation (0.592).
+
+In simple terms, the analysis confirms that the number of field goals made per game is the most significant factor in predicting a player's points per game.
+
+
+### Ronak - Trees
+
+Fitting trees to the data for best model estimation.
+first we train a single tree and check its RMSE_train
+Second we train a random forest and check its RMSE_train
+Third we train a Boosted tree and check its RMSE_train
+Lastly we check the variable importance of each individual variable used to train.
+Fit a big tree to the NBA data using rpart instead of tree
+and using cross-validation.
+Use rpart plotcp so do cross-validation.
+Plot: rpart plotcp cross-validation.
+Big off min loss cp value and plot tree for that cp value as well
+as a bigger cp value (smaller tree) and a smaller cp value (bigger tree).
+Plot: the three trees (from the three cp values) as well as the fitted function.
+Plot: the best tree using rpart.
+
+```{r, message=FALSE, warning=FALSE}
+
+library(tree)
+library(readr)
+library(BART)
+library(rpart)
+#--------------------------------------------------
+#reading the data
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+nba$position  <- factor(nba$position )
+#--------------------------------------------------
+
+#create train,val,test sets
+set.seed(99)
+n=nrow(nba)
+n1=floor(n/2)
+n2=floor(n/4)
+n3=n-n1-n2
+ii = sample(1:n,n)
+nbatrain=nba[ii[1:n1],]
+nbaval = nba[ii[n1+1:n2],]
+nbatest = nba[ii[n1+n2+1:n3],]
+
+
+#--------------------------------------------------
+# fit on train+val
+set.seed(1)
+nbatrainval <- rbind(nbatrain, nbaval)
+
+
+# fit a big tree using rpart.control
+big.tree <- rpart(points_per_game  ~ ., 
+                  method = "anova", data = nbatrainval,
+                  control = rpart.control(minsplit = 3, cp = .00005)
+)
+nbig <- length(unique(big.tree$where))
+cat("size of big tree: ", nbig, "\n")
+#--------------------------------------------------
+# look at cross-validation
+par(mfrow = c(1, 1))
+plotcp(big.tree)
+
+```
+
+The large decision tree model (81 terminal nodes) has a highly complex structure that captures detailed patterns in the NBA data, but significantly risks overfitting. From the cross-validation plot, a cp value around 0.0033 provides the best trade-off between complexity and performance; beyond this point, larger trees do not significantly improve accuracy and increase the risk of overfitting.
+
+```{r}
+#--------------------------------------------------
+# show fit from some trees
+
+oo <- order(nbatrainval$points_per_game)
+bestcp <- big.tree$cptable[which.min(big.tree$cptable[, "xerror"]), "CP"]
+cat("bestcp: ", bestcp, "\n")
+cpvec <- c(.0157, bestcp, .004)
+par(mfrow = c(1, 2))
+#for (i in 1:3) {
+#  plot(nba, pch = 16, col = "blue", cex = .5)
+#  ptree <- prune(big.tree, cp = cpvec[i])
+#  pfit <- predict(ptree)
+#  lines(nba$points_per_game[oo], pfit[oo], col = "red", lwd = 2)
+#  title(paste("alpha = ", round(cpvec[i], 3)))
+#  plot(ptree, uniform = TRUE)
+#  text(ptree, digits = 4)
+#}
+
+#--------------------------------------------------
+# plot best tree
+
+par(mfrow = c(1, 1))
+best.tree <- prune(big.tree, cp = bestcp)
+plot(best.tree, uniform = TRUE, branch = .5, margin = .5)
+text(best.tree, digits = 4, use.n = TRUE, fancy = TRUE, bg = "lightblue")
+
+
+#calculating RMSE value/loss
+predictions <- predict(best.tree, newdata = nbatest)
+RMSE <- sqrt(mean((nbatest$points_per_game - predictions)^2))
+print('RMSE for best tree with best cp value is - ')
+print(RMSE)
+
+
+rm(list = ls())
+
+```
+
+The pruned decision tree, optimized using the best complexity parameter, achieves a good balance between model complexity and prediction accuracy. The RMSE of 0.9476 indicates that the model provides reliable predictions of a player's points per game, with an average error of less than 1 point.
+
+Random Forests: fit NBA data using random forests.
+Plot: oob error estimation.
+Plot: fit from random forests for three different number of trees in forest.
+
+```{r}
+library(randomForest)
+
+#--------------------------------------------------
+#reading the data
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+nba$position  <- factor(nba$position )
+#--------------------------------------------------
+
+#create train,val,test sets
+set.seed(99)
+n=nrow(nba)
+n1=floor(n/2)
+n2=floor(n/4)
+n3=n-n1-n2
+ii = sample(1:n,n)
+nbatrain=nba[ii[1:n1],]
+nbaval = nba[ii[n1+1:n2],]
+nbatest = nba[ii[n1+n2+1:n3],]
+
+
+#--------------------------------------------------
+# fit on train+val
+set.seed(1)
+nbatrainval <- rbind(nbatrain, nbaval)
+
+#--------------------------------------------------
+# get rf fits for different number of trees
+
+
+set.seed(99)
+n <- nrow(nbatrainval)
+ntreev <- c(10, 500, 1000)
+nset <- length(ntreev)
+fmat <- matrix(0, n, nset)
+for (i in 1:nset) {
+  cat("doing NBA rf: ", i, "\n")
+  rffit <- randomForest(points_per_game  ~ ., data = nbatrainval, ntree = ntreev[i], maxnodes = 100)
+  
+  
+  #calculating RMSE value/loss
+  predictions <- predict(rffit, newdata = nbatrain)
+  RMSE <- sqrt(mean((nbatrain$points_per_game - predictions)^2))
+  cat("RMSE for Random Forest with number of tree ",ntreev[i]," is - ", RMSE,"\n")
+  #print(RMSE)
+  
+}
+#--------------------------------------------------
+# plot oob error using last fitted rffit which has the largest ntree.
+
+
+par(mfrow = c(1, 1))
+plot(rffit)
+
+```
+
+The random forest model demonstrates robust predictive performance. It seems that increasing the number of trees in the forest accordingly improves the model's accuracy, as indicated by decreasing RMSE values: 0.3858745 for 10 trees, 0.3115748 for 500 trees, and 0.3098001 for 1000 trees. Yet, the out-of-bag (OOB) error plot reveals that while adding more trees initially reduces the error significantly, the improvement stabilizes beyond 500 trees, indicating diminishing returns from additional trees.
+
+
+```{r}
+# plot fits
+
+#par(mfrow = c(1, 1))
+#oo <- order(nba$points_per_game)
+#for (i in 1:nset) {
+#  plot(Boston$lstat, Boston$medv, xlab = "lstat", ylab = "medv")
+#  lines(Boston$lstat[oo], fmat[oo, i], col = i, lwd = 3)
+#  title(main = paste("bagging ntrees = ", ntreev[i]))
+#}
+
+#--------------------------------------------------
+rm(list = ls())
+
+```
+
+NBA Data: fit best boosting on (train, val), get fit on test.
+Get rmse on test.
+Plot: fit vs. y on test.
+Plot: variable importance.
+Plot: partial dependence plots.
+
+```{r}
+library(gbm)
+#--------------------------------------------------
+#reading the data
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+nba$position  <- factor(nba$position )
+#--------------------------------------------------
+
+#create train,val,test sets
+set.seed(99)
+n=nrow(nba)
+n1=floor(n/2)
+n2=floor(n/4)
+n3=n-n1-n2
+ii = sample(1:n,n)
+nbatrain=nba[ii[1:n1],]
+nbaval = nba[ii[n1+1:n2],]
+nbatest = nba[ii[n1+n2+1:n3],]
+
+
+#--------------------------------------------------
+# fit on train+val
+set.seed(1)
+nbatrainval <- rbind(nbatrain, nbaval)
+ntrees <- 10000
+finb <- gbm(points_per_game  ~ .,
+            data = nbatrainval, distribution = "gaussian",
+            interaction.depth = 5, n.trees = ntrees, shrinkage = .01
+)
+finbpred <- predict(finb, newdata = nbatest, n.trees = ntrees)
+finbpred_trainval <- predict(finb, newdata = nbatrainval, n.trees = ntrees)
+#--------------------------------------------------
+# plot y vs yhat for test data and compute rmse on test.
+
+finbrmse_trainval <- sqrt(sum((nbatrainval$points_per_game - finbpred_trainval)^2) / nrow(nbatrainval))
+cat("finbrmse_trainval: ", finbrmse_trainval, "\n")
+finbrmse <- sqrt(sum((nbatest$points_per_game - finbpred)^2) / nrow(nbatest))
+cat("finbrmse: ", finbrmse, "\n")
+plot(nbatest$points_per_game, finbpred, xlab = "test ppg", ylab = "boost pred")
+abline(0, 1, col = "red", lwd = 2)
+```
+
+The boosting model demonstrates high performance, with an almost perfect fit on the training and validation data (RMSE of 0.03822) and a very low error on the test data (RMSE of 0.3043306). The close alignment of predicted and actual values in the plot further confirms its effectiveness, proving that the boosting model is a powerful tool for forecasting NBA player performance based on their comprehensive statistics.
+
+
+```{r}
+# plot variable importance
+p <- ncol(nbatrain) - 1 # want number of variables for later
+vsum <- summary(finb) # this will have the variable importance info
+row.names(vsum) <- NULL # drop varable names from rows.
+
+
+
+# write variable importance table
+cat("\\begin{verbatim}\n")
+print(vsum)
+cat("\\end{verbatim}\n")
+
+# plot variable importance
+# the package does this automatically, but I did not like the plot
+plot(vsum$rel.inf, axes = F, pch = 16, col = "red")
+axis(1, labels = vsum$var, at = 1:p)
+axis(2)
+for (i in 1:p) lines(c(i, i), c(0, vsum$rel.inf[i]), lwd = 4, col = "blue")
+
+```
+
+Running variable importance to the boosting model underscores these key insights:
+1. Field goals per game and field goal attempts per game are the most significant predictors, with free throws per game also contributing meaningfully.
+
+2. Turnovers, age, and games started show moderate influence suggesting that players with a combination of higher ball-handling responsibilities, experience, and opportunities to start games affect their scoring.
+
+```{r}
+# partial dependence plots
+
+par(mfrow = c(3, 3))
+nms <- names(nbatrain)[1:9]
+for (i in 1:9) plot(finb, i = nms[i])
+
+
+#--------------------------------------------------
+rm(list = ls())
+
+```
+
+
+NBA Data: fit BART, get fit on test.
+Get rmse on test.
+Plot: fit vs. y on test.
+
+```{r}
+#reading the data
+nba <- read_csv("nba_filtered_cleaned_for_model_prep.csv")
+nba$position  <- factor(nba$position )
+x <- nba[, c( "age", "games_played", "games_started", "minutes_played_per_game",
+             "field_goals_per_game", "field_goals_attempts_per_game", "three_point_field_goals_per_game",
+             "three_point_field_goals_attempts_per_game", "two_point_field_goals_per_game", "two_point_field_goals_attempts_per_game",
+             "free_throws_per_game", "free_throws_attempts_per_game", "offensive_rebounds_per_game",
+             "defensive_rebounds_per_game", "total_rebounds_per_game", "assists_per_game", "steals_per_game",
+             "blocks_per_game", "turnovers_per_game", "personal_fouls_per_game")]
+y <- nba$points_per_game 
+#--------------------------------------------------
+
+n=length(y) #total sample size
+set.seed(14) #
+ii = sample(1:n,floor(.75*n)) # indices for train data, 75% of data
+xtrain=x[ii,]; ytrain=y[ii] # training data
+xtest=x[-ii,]; ytest=y[-ii] # test data
+xtrain <- as.matrix(xtrain)
+cat("train sample size is ",length(ytrain)," and test sample size is ",length(ytest),"\n")
+
+set.seed(99)
+bf_train = wbart(xtrain,ytrain)
+yhat = predict(bf_train,as.matrix(xtest))
+
+yhat.mean = apply(yhat,2,mean)
+
+
+plot(ytest,yhat.mean)
+abline(0,1,col=2)
+
+predictions_BART <- predict(bf_train,as.matrix(xtest))
+BARTrmse <- sqrt(mean((ytest - predictions_BART)^2))
+cat("BART RMSE is : - ",BARTrmse)
+```
+
+The BART model had an RMSE of 9.599 on the test data, which indicates that its predictions are less accurate compared to other models like boosting and random forests. The scatterplot shows a reasonable alignment of predicted and actual values, but with noticeable spread that reflects higher variability in predictions; this spread suggests that the BART model may not be capturing the underlying patterns in the data as effectively as the other models.
+
+The significantly higher RMSE for BART, compared to the RMSEs for boosting and random forests (0.30433 and 0.3098 respectively ), highlights its lower predictive accuracy. However, further tuning of BART's parameters or feature selection may improve its performance as a supplementary model.
