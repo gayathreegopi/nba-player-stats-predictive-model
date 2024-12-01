@@ -57,4 +57,4 @@ Review the output metrics to assess model performance and accuracy.
   
 ## Contact
 For questions or further information, please contact:
-* LinkedIn: linkedin.com/in/gayathreegopi
+* LinkedIn: [linkedin.com/in/gayathreegopi](https://linkedin.com/in/gayathreegopi)
